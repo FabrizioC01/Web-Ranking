@@ -31,9 +31,10 @@
 
 
 //Struttura dati grafo
-typedef struct{
+typedef struct grafo{
     int nodi; //totale dei nodi
-    int *out; //array contenente gli archi uscenti dal nodo i
-    int *in; //array con valori dei nodi degli archi entranti al nodo i
+    int *out; //array contenente il numero di archi uscenti dal nodo i
+    int **in; //array con valori dei nodi degli archi entranti al nodo i
+    int *indici; //array di dimensioni degli array degli archi entranti
 } graph;
 

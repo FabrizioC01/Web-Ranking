@@ -13,6 +13,7 @@ typedef struct dati{
     pthread_mutex_t *mu;
     sem_t *f_slots;
     sem_t *b_slots;
+
 } dati;
 
 void consumer_routine(void *data){
@@ -28,7 +29,7 @@ void start_graph(const int nodes,const int threads,const int iter,const int damp
     sem_t free_slots;
     sem_t busy_slots;
 
-    
+    graph g;
 
     char *line;
     ssize_t s;
@@ -42,6 +43,12 @@ void start_graph(const int nodes,const int threads,const int iter,const int damp
         }
     } 
     if(row!=col) raise_error("Errore il file non contiene una matrice di adiacenza",pos);
+
+    //Inizializzazione grafo vuoto
+    g.nodi=0;
+    g.indici=NULL;
+    g.nodi=NULL;
+    g.out=NULL;
 
     dati d[N_THREADS];
     pthread_t t[N_THREADS];
