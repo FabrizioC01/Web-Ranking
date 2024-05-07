@@ -28,3 +28,12 @@
 #define BUFF_SIZE 50
 
 #define USAGE_MSG "\npagerank [-k K] [-m M] [-d D] [-e E] infile \n\npositional arguments:\n   infile   input file\n\noptions:\n -k K   show top K nodes (default 3)\n -m M   maximum number of iterations (default 100)\n -d D    damping factor (default 0.9)\n -e E    max error (default 1.0e7)\n -t T    -t T number of threads (default 3)"
+
+
+//Struttura dati grafo
+typedef struct{
+    int nodi; //totale dei nodi
+    int *out; //array contenente gli archi uscenti dal nodo i
+    int *in; //array con valori dei nodi degli archi entranti al nodo i
+} graph;
+

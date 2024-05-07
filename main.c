@@ -41,6 +41,6 @@ int main(int argc, char *argv[]){
     FILE *fp = xfopen(argv[argc-1],"r",pos);
 
     start_graph(top_nodes,th,max_it,damp,err,fp);
-
+    
     return 0;
 }

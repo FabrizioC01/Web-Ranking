@@ -1,4 +1,4 @@
-#include "core/declarations.h"
+#include "../core/declarations.h"
 
 // Funzione di gestione deglie errori che termina il programma con "mex" di errore e stampa "line" e "file" in cui è stato chiamato.
 void raise_error(const char *mex,int line, char *file);
