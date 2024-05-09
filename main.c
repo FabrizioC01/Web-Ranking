@@ -1,5 +1,3 @@
-#include "error/error.h"
-#include "core/declarations.h"
 #include "core/graph.h"
 
 #define pos __LINE__,__FILE__
@@ -42,5 +40,6 @@ int main(int argc, char *argv[]){
 
     start_graph(top_nodes,th,max_it,damp,err,fp);
     
+    fclose(fp);
     return 0;
 }
