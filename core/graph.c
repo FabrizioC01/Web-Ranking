@@ -17,23 +17,19 @@ typedef struct dati{
     sem_t *b_slots;
     graph *graph;
     pthread_mutex_t *g_mutex;
-    int *count;
-    int *end_threads;
 } dati;
 
-//Aggiunge in testa restituisce true se lo aggiunge, false altrimenti
-void push_inmap(inmap *input,int val){
-    inmap *head= input;
+//Aggiunge in testa se non esiste già
+void push_inmap(inmap **input,int val){
+    inmap *head =*input;
     while(head!=NULL){
-        if(head->value==val) 
+        if(head->value==val) return;
         head=head->next;
     }
-    
-    inmap *n_elem = malloc(sizeof(inmap));
+    inmap *n_elem = (inmap *)malloc(sizeof(inmap));
     n_elem->value=val;
-    n_elem->next=input;
-    input=n_elem;
-    
+    n_elem->next=*input;
+    *input=n_elem;
 }
 
 //Funzione eseguita dai thread consumatori
@@ -41,34 +37,30 @@ void *consumer_routine(void *data){
     dati *d = (dati *)data;
     pair coppia; //per salvare i valori temp
     do{
+
         xsem_wait(d->b_slots,pos);
         xpthread_mutex_lock(d->mu,pos);
         coppia.l=(d->buffer[*d->pointer % BUFF_SIZE]).l;
         coppia.r=(d->buffer[*d->pointer % BUFF_SIZE]).r;
         (*d->pointer)+=1;
-        fprintf(stderr,"\nLETTO %d -> %d\n",coppia.l,coppia.r);
         xpthread_mutex_unlock(d->mu,pos);
         xsem_post(d->f_slots,pos);
 
-        
+        if(coppia.l==-1 && coppia.r==-1) break;
 
-        if(coppia.l!=-1 && coppia.r!=-1 && coppia.l!=coppia.r){
+        if(coppia.l!=coppia.r){
             //aggiungo al grafo
             xpthread_mutex_lock(d->g_mutex,pos);
-            fprintf(stderr,"\nLETTO  %d -> %d\n",coppia.l,coppia.r);
             (d->graph)->nodi+=1;
             (d->graph)->out[coppia.l-1]+=1;
-            (*d->count)+=1;
-            inmap *list = (d->graph)->in[coppia.r-1];
-            push_inmap(list,coppia.r-1);
+            push_inmap(&(d->graph)->in[(coppia.r)-1],coppia.l-1);
             xpthread_mutex_unlock(d->g_mutex,pos);
         }
-        if(coppia.l==-1 && coppia.r==-1){
-            break;
-        }
+
+        
     }while(true);
 
-    return NULL;
+    pthread_exit(NULL);
 }
 
 void start_graph(const int nodes,const int threads,const int iter,const int damp,const int m_err, FILE *infile){
@@ -84,7 +76,7 @@ void start_graph(const int nodes,const int threads,const int iter,const int damp
     xsem_init(&free_slots,0,BUFF_SIZE,pos);
     xsem_init(&busy_slots,0,0,pos);
 
-    graph g;
+    graph *g = malloc(sizeof(graph));
 
     char *line=NULL;
     ssize_t s=0;
@@ -102,26 +94,24 @@ void start_graph(const int nodes,const int threads,const int iter,const int damp
     if(row!=col) raise_error("Errore il file non contiene una matrice di adiacenza",pos);
 
     //Inizializzazione grafo vuoto
-    g.nodi=0;
-    g.out= malloc(sizeof(int)*row);
-    g.in= malloc(sizeof(inmap)*row);
-    int count=0,end_threads=0;
+    g->nodi=0;
+    g->out= malloc(sizeof(int)*row);
+    g->in= malloc(sizeof(inmap*)*row);
 
     for(int i=0;i<row;i++){
-        g.out[i]=0;
-        g.in[i]=NULL;
+        g->out[i]=0;
+        g->in[i]=NULL;
     }
 
     dati d[N_THREADS];
     pthread_t t[N_THREADS];
     for(int i=0;i<N_THREADS;i++){
-        d[i].count=&count;
         d[i].buffer = buffer;
         d[i].mu= &mutex;
         d[i].pointer=&cindex;
         d[i].b_slots=&busy_slots;
         d[i].f_slots=&free_slots;
-        d[i].graph= &g;
+        d[i].graph= g;
         d[i].g_mutex= &graph_mutex;
         xpthread_create(&t[i],NULL,consumer_routine,&d[i],pos);
     }
@@ -157,10 +147,10 @@ void start_graph(const int nodes,const int threads,const int iter,const int damp
 
 
     for(int i=0;i<N_THREADS;i++){
-        fprintf(stderr,"\nIl thread %d ha terminato",i);
         xpthread_join(t[i],NULL,pos);
     }
-    fprintf(stderr,"\n%d\n",count);
+    
+    
     xsem_destroy(&free_slots,pos);
     xsem_destroy(&busy_slots,pos);
     xpthread_mutex_destroy(&mutex,pos);
