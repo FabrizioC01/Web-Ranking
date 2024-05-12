@@ -38,7 +38,13 @@ int main(int argc, char *argv[]){
 
     FILE *fp = xfopen(argv[argc-1],"r",pos);
 
-    start_graph(top_nodes,th,max_it,damp,err,fp);
+    graph *g = graph_init(top_nodes,th,max_it,damp,err,fp);
+
+    graph_delete(&g);
+
+    //int iter=0;
+    //double *v = pagerank(g,damp,err,max_it,th,&iter);
+
     
     fclose(fp);
     return 0;
