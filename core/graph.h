@@ -1,7 +1,7 @@
 #include "../error/error.h"
 
 //Funzione che inizia la procedura di creazione del grafo dal file "infile"
-graph *graph_init(const int nodes,const int threads,const int iter,const int damp,const int m_err,FILE *infile);
+graph *graph_init(const int threads, FILE *infile);
 
 void graph_delete(graph **g);
 

@@ -4,7 +4,8 @@
 
 int main(int argc, char *argv[]){
     int c;
-    int top_nodes=K_NODES, max_it=MAX_ITER, damp=DMP_FACT, err=MAX_ERR,th=N_THREADS;
+    int top_nodes=K_NODES, max_it=MAX_ITER,th=N_THREADS;
+    double damp=DMP_FACT, err=MAX_ERR;
 
     while ((c=getopt(argc,argv,"k:m:d:e:t:"))!=-1){
         switch (c){
@@ -38,13 +39,13 @@ int main(int argc, char *argv[]){
 
     FILE *fp = xfopen(argv[argc-1],"r",pos);
 
-    graph *g = graph_init(top_nodes,th,max_it,damp,err,fp);
+    graph *g = graph_init(th,fp);
+
+    int iter=0;
+    
+    double *v = pagerank(g,damp,err,max_it,th,&iter);
 
     graph_delete(&g);
-
-    //int iter=0;
-    //double *v = pagerank(g,damp,err,max_it,th,&iter);
-
     
     fclose(fp);
     return 0;

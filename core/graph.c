@@ -22,10 +22,10 @@ typedef struct dati{
 } dati;
 
 //Aggiunge in testa se non esiste già
-bool push_inmap(inmap **input,int val,int *ed){
+void push_inmap(inmap **input,int val,int *ed){
     inmap *head =*input;
     while(head!=NULL){
-        if(head->value==val) return false;
+        if(head->value==val) return;
         head=head->next;
     }
     inmap *n_elem = (inmap *)malloc(sizeof(inmap));
@@ -33,7 +33,6 @@ bool push_inmap(inmap **input,int val,int *ed){
     n_elem->value=val;
     n_elem->next=*input;
     *input=n_elem;
-    return true;
 }
 
 //Funzione eseguita dai thread consumatori
@@ -67,7 +66,7 @@ void *consumer_routine(void *data){
     pthread_exit(NULL);
 }
 
-graph *graph_init(const int nodes,const int threads,const int iter,const int damp,const int m_err, FILE *infile){
+graph *graph_init(const int threads, FILE *infile){
 
     pair buffer[BUFF_SIZE];
     ssize_t e=0;
@@ -109,9 +108,9 @@ graph *graph_init(const int nodes,const int threads,const int iter,const int dam
         g->in[i]=NULL;
     }
 
-    dati d[N_THREADS];
-    pthread_t t[N_THREADS];
-    for(int i=0;i<N_THREADS;i++){
+    dati d[threads];
+    pthread_t t[threads];
+    for(int i=0;i<threads;i++){
         d[i].d_end=&d_end;
         d[i].edges=&valid_edges;
         d[i].buffer = buffer;
@@ -130,7 +129,7 @@ graph *graph_init(const int nodes,const int threads,const int iter,const int dam
     while(true){
         e = getline(&line,&s,infile);
         if(e==EOF){
-            for(int i=0;i<N_THREADS;i++){
+            for(int i=0;i<threads;i++){
                 xsem_wait(&free_slots,pos);
                 xpthread_mutex_lock(&mutex,pos);
                 buffer[pindex % BUFF_SIZE].l=-1;
@@ -154,11 +153,11 @@ graph *graph_init(const int nodes,const int threads,const int iter,const int dam
     }
 
 
-    for(int i=0;i<N_THREADS;i++){
+    for(int i=0;i<threads;i++){
         xpthread_join(t[i],NULL,pos);
     }
     
-    fprintf(stdout,"\nNumber of nodes: %d",g->nodi);
+    fprintf(stdout,"Number of nodes: %d",g->nodi);
     fprintf(stdout,"\nNumber of dead-end nodes: %d",d_end);
     fprintf(stdout,"\nNumber of valid arcs: %d \n",valid_edges);
 

@@ -21,13 +21,13 @@
 #define K_NODES 3
 #define MAX_ITER 100
 #define DMP_FACT 0.9
-#define MAX_ERR 1.0e7
+#define MAX_ERR 1.0e-7
 #define N_THREADS 3
 
 #define INIT_INPUT_N 20
 
 //Costante dimensione buffer prod/cons
-#define BUFF_SIZE 10
+#define BUFF_SIZE 50
 
 #define USAGE_MSG "\npagerank [-k K] [-m M] [-d D] [-e E] infile \n\npositional arguments:\n   infile   input file\n\noptions:\n -k K   show top K nodes (default 3)\n -m M   maximum number of iterations (default 100)\n -d D   damping factor (default 0.9)\n -e E   max error (default 1.0e7)\n -t T   number of threads (default 3)\n"
 
