@@ -2,106 +2,110 @@
 
 #define pos __LINE__,__FILE__
 
+
 typedef struct calc{
     graph *g;
     double damp;
     double teleporting;
-    double *dead_sum;
-    int *error;
+    double *dead_end;
+    double *error;
+    int *ended;
+    //vettori da usare anch'essi in mutua esclusione
     double *X;
     double *Y;
     double *NEXT;
-    pthread_mutex_t *vectors;
+    pthread_cond_t *can_update;
+    pthread_mutex_t *calc_mutex;
     //utili a capire che indice sta calcolando
     int *index;
     pthread_mutex_t *index_mutex;
     pthread_cond_t *free;
-    pthread_cond_t *done;
 } dati;
 
-void hard_job(graph *g, double *X,double *Y){
-    double tmp=0;
-    fprintf(stderr,"\nPopolazione di Y:");
+void vect_Y(graph *g,double *Y, double *X){
+    fprintf(stderr,"\nModifica array Y:");
     for(int i=0;i<g->nodi;i++){
         if(g->out[i]>0){
+            fprintf(stderr,"\n{%d} out %d NEW Y %.6f",i,g->out[i],X[i]/g->out[i]);
             Y[i]=X[i]/g->out[i];
         }else{
             Y[i]=0.0;
         }
-        fprintf(stderr,"[%d]:%f",i,Y[i]);
     }
 }
 
 void *thread_job(void *data){
     dati *d= (dati *)data;
     int ind;
-    while(true){
+    while (true){
         xpthread_mutex_lock(d->index_mutex,pos);
-        while(*(d->index)==-1){
-            pthread_cond_wait(d->free,d->index_mutex);
-        }
-        if(*(d->index)!=-2){
-            //fprintf(stderr,"\nUn thread  ha letto %d",*d->index);
-            ind=*d->index;
-            *(d->index)-=1;
-        }else{
-            //fprintf(stderr,"\nUn thread sta terminando...");
-            pthread_cond_signal(d->done);
+        while(*d->index==d->g->nodi || *d->index==d->g->nodi){ pthread_cond_wait(d->free,d->index_mutex);}
+        if(*d->index==EOF){
             xpthread_mutex_unlock(d->index_mutex,pos);
-            break;
+            break;    
         }
-        pthread_cond_signal(d->done);//forse da spostare piu avanti
+        ind = *d->index;
+        (*d->index)+=1;
 
+        if(*d->dead_end == -1.0){
+            vect_Y(d->g,d->Y,d->X);
+            fprintf(stderr,"\nArray Y");
+            for(int i=0;i<d->g->nodi;i++){ fprintf(stderr,"\n(%d)-> %f",i,d->Y[i]);}
+            *d->dead_end=0.0;
+            for(int i=0;i<d->g->nodi;i++){
+                if(d->g->out[i]==0) *d->dead_end+=d->X[i];
+            }
+            *d->dead_end*=((d->damp))/d->g->nodi;
+        }
         xpthread_mutex_unlock(d->index_mutex,pos);
 
-
-        xpthread_mutex_lock(d->vectors,pos);
-
-        if(ind!=-1 && ind!=-2){
-            if(*d->dead_sum==-1.0){ //Eseguito ogni iterazione il calcolo del contributo dei node DE
-                *d->dead_sum=0.0;
-                for(int i=0;i<d->g->nodi;i++){
-                    if(d->g->out[i]==0){
-                        *d->dead_sum+=d->X[i];
-                    }
-                }
-                *d->dead_sum*=d->damp/(d->g->nodi);
-                //fprintf(stderr,"\nDead Sum aggiornato a %f dai nodi %d",*d->dead_sum,d->g->nodi);
-            }
-            //devo popolare Y
-            hard_job(d->g,d->X,d->Y);
-            fprintf(stderr,"\n\n\nUn thread sta calcolando %d esimo elemento\n",ind);
-            inmap *head=d->g->in[ind];
-            double res=0.0;
-            fprintf(stderr,"\nLeggo la lista di %d: ",ind);
-            while(head!=NULL){
-                //fprintf(stderr,"\n then Y[%d]: %f",head->value,d->Y[head->value]);
-                res=(res)+d->Y[head->value];
-                head=head->next;
-            }
-            res=(d->damp)*(res);
-            fprintf(stderr,"\nSum of inmap nodes: %f \n",res);
-            d->NEXT[ind]=(double)(d->teleporting)+(*d->dead_sum)+(res);
-            fprintf(stderr,"\n\n\nUn thread sta terminando il calcolo del %d esimo elemento\n",ind);
-
-            xpthread_mutex_unlock(d->vectors,pos);
+        d->NEXT[ind]=0.0;
+        inmap *hd = d->g->in[ind];
+        fprintf(stderr,"\nSum for %d",ind);
+        while(hd!=NULL){
+            fprintf(stderr,"Value of Y[%d] %f | ",hd->value,d->Y[hd->value]);
+            d->NEXT[ind]=d->NEXT[ind]+d->Y[hd->value];
+            hd=hd->next;
         }
+        d->NEXT[ind]=d->NEXT[ind]*0.9;
+        
+        fprintf(stderr,"\nSum :[%d] %.9f",ind,d->NEXT[ind]);
+
+        d->NEXT[ind]+=(*d->dead_end);
+        d->NEXT[ind]+=(1-d->damp)/d->g->nodi;
+
+        xpthread_mutex_lock(d->index_mutex,pos);
+        
+
+        fprintf(stderr,"\nWake up from sleep with value of : %d | damp: %f | dead_end: %f | telep: %f",ind,d->damp,*d->dead_end,(1-d->damp)/d->g->nodi);
+        (*d->ended)+=1;
+        pthread_cond_signal(d->can_update);
+        xpthread_mutex_unlock(d->index_mutex,pos);
     }
+    fprintf(stderr,"\nTermino...");
     pthread_exit(NULL);
 }
 
 double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *numiter){
-    int n_nodi = g->nodi;
-    pthread_t thread[taux];
-    double dead_sum=-1.0;
-    int error=0;
-    int index=n_nodi-1;
-    pthread_mutex_t mutex= PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_t data_mutex= PTHREAD_MUTEX_INITIALIZER;
-    pthread_cond_t free= PTHREAD_COND_INITIALIZER;
-    pthread_cond_t done= PTHREAD_COND_INITIALIZER;
+    fprintf(stderr,"\nLetti da tastiera: dmp_fact=%.2f | err=%f | maxIt= %d | thread= %d",d,eps,maxiter,taux);
 
-    const double teleporting = (1-d)/(n_nodi);
+    int n_nodi = g->nodi;
+    double dead_end=-1.0;
+    double error=0;
+    int index=n_nodi;
+    double damp= d;
+
+
+    pthread_t thread[taux];
+
+    pthread_mutex_t mutex= PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_t calc_mutex= PTHREAD_MUTEX_INITIALIZER;
+
+    pthread_cond_t can_update = PTHREAD_COND_INITIALIZER;
+    pthread_cond_t free= PTHREAD_COND_INITIALIZER;
+
+    int endedt=n_nodi;
+
 
     double *x= malloc(sizeof(double)*n_nodi);
     double *y= malloc(sizeof(double)*n_nodi);
@@ -109,54 +113,48 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
 
     //carico il vettore iniziale
     for(int j=0;j<n_nodi;j++){
-        x[j]=(double)1/(n_nodi);
+        x[j]=(double)1/n_nodi;
+        next[j]=0.0;
     }
 
     dati data[n_nodi];
 
     for(int i=0;i<taux;i++){
-        data[i].vectors=&data_mutex;
+        data[i].calc_mutex=&calc_mutex;
+        data[i].ended=&endedt;
+        data[i].can_update= &can_update;
         data[i].damp=d;
         data[i].g= g;
-        data[i].dead_sum=&dead_sum;
-        data[i].done=&done;
+        data[i].dead_end=&dead_end;
         data[i].free=&free;
         data[i].index= &index;
         data[i].NEXT= next;
         data[i].index_mutex=&mutex;
-        data[i].teleporting=teleporting;
         data[i].error=&error;
         data[i].X = x;
         data[i].Y = y;
         xpthread_create(&thread[i],NULL,thread_job,&data[i],pos);
     }
 
-    int i=0;
-
-    while(true && i<maxiter){//produce indici di X[i] su cui devono lavorare i thread
+    int iterazioni=0;
+    while(iterazioni<maxiter){//produce indici di X[i] su cui devono lavorare i thread
         xpthread_mutex_lock(&mutex,pos);
-        while(index!=-1){
-            pthread_cond_wait(&done,&mutex);
-        }
-        //qui devo mettere next in X - questo succede alla fine dell'iterazione
-        xpthread_mutex_lock(&data_mutex,pos);
-        fprintf(stderr,"\nSwapping puntatori X <-> NEXT");
-        *x=*next;
-        xpthread_mutex_unlock(&data_mutex,pos);
-        fprintf(stderr,"\nSto aggiornando gli indici..");
-        dead_sum=-1;
-        index=n_nodi-1;
-        i++;
+        fprintf(stderr,"\nProd wait %d %d",endedt,index);
+        while(endedt!=n_nodi){ pthread_cond_wait(&can_update,&mutex);}
+        fprintf(stderr,"\nAggiorno valori");
+        endedt=0;
+        index=0;
+        dead_end=-1.0;
+        for(int i=0;i<n_nodi && iterazioni!=0;i++){ x[i]=next[i]; }
+        iterazioni++;
         pthread_cond_broadcast(&free);
         xpthread_mutex_unlock(&mutex,pos);
-    } //quando ha terminato 
+    } 
 
-    int ended_threads=0;
-
-    while(ended_threads!=taux-1){
+    for(int i=0;i<taux;i++){
         xpthread_mutex_lock(&mutex,pos);
-        index=-2;
-        ended_threads++;
+        while(endedt!=n_nodi) pthread_cond_wait(&can_update,&mutex);
+        index=EOF; //term value
         pthread_cond_signal(&free);
         xpthread_mutex_unlock(&mutex,pos);
     }
@@ -170,6 +168,7 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
         fprintf(stderr,"\n[%d]: %f",j,next[j]);
         s+=next[j];
     }
-    fprintf(stderr,"\nSum of ranks: %f\n",s);
+
+    fprintf(stderr,"\nWith sum of %f",s);
     return NULL;
 }
