@@ -1,5 +1,7 @@
 #define _GNU_SOURCE 
+#include <math.h>
 #include <ctype.h>  
+#include <float.h>
 #include <stdio.h>    
 #include <stdlib.h>   
 #include <stdbool.h>  
@@ -17,12 +19,13 @@
 #include <sys/stat.h>        
 #include <fcntl.h>           
 #include <pthread.h>
+#include <signal.h>
 
 // Costanti iniziali che sostutuiscono i valori non inseriti
 #define K_NODES 3
-#define MAX_ITER 1
+#define MAX_ITER 100
 #define DMP_FACT 0.9
-#define MAX_ERR 1.0e-6
+#define MAX_ERR 1.0e-7
 #define N_THREADS 3
 
 #define INIT_INPUT_N 20
