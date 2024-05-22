@@ -7,6 +7,7 @@
 #include <string.h>   
 #include <errno.h>    
 #include <unistd.h>
+#include <getopt.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ipc.h>
@@ -19,9 +20,9 @@
 
 // Costanti iniziali che sostutuiscono i valori non inseriti
 #define K_NODES 3
-#define MAX_ITER 100
+#define MAX_ITER 1
 #define DMP_FACT 0.9
-#define MAX_ERR 1.0e-7
+#define MAX_ERR 1.0e-6
 #define N_THREADS 3
 
 #define INIT_INPUT_N 20
