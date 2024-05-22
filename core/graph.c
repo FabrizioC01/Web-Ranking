@@ -22,7 +22,7 @@ typedef struct dati{
 } dati;
 
 //Aggiunge in testa se non esiste già
-void push_inmap(inmap **input,int val,int *ed){
+void push_inmap(inmap **input,int val,int *ed,int *out_count){
     inmap *head =*input;
     while(head!=NULL){
         if(head->value==val) return;
@@ -30,6 +30,7 @@ void push_inmap(inmap **input,int val,int *ed){
     }
     inmap *n_elem = (inmap *)malloc(sizeof(inmap));
     *ed+=1;
+    out_count[val]+=1;
     n_elem->value=val;
     n_elem->next=*input;
     *input=n_elem;
@@ -55,8 +56,7 @@ void *consumer_routine(void *data){
             //aggiungo al grafo
             xpthread_mutex_lock(d->g_mutex,pos);
             if(d->graph->out[coppia.l-1]==0) (*d->d_end)--;
-            (d->graph)->out[coppia.l-1]+=1;
-            push_inmap(&(d->graph)->in[(coppia.r)-1],coppia.l-1,d->edges);
+            push_inmap(&(d->graph)->in[(coppia.r)-1],coppia.l-1,d->edges,d->graph->out);
             xpthread_mutex_unlock(d->g_mutex,pos);
         }
 
@@ -144,6 +144,7 @@ graph *graph_init(const int threads, FILE *infile){
             sscanf(line,"%d %d",&from,&to);
             xsem_wait(&free_slots,pos);
             xpthread_mutex_lock(&mutex,pos);
+            if(from<0 || to<0) raise_error("\nErrore nel file sono stati letti archi non validi...",pos);
             buffer[pindex % BUFF_SIZE].l=from;
             buffer[pindex % BUFF_SIZE].r=to;
             pindex++;
@@ -159,7 +160,7 @@ graph *graph_init(const int threads, FILE *infile){
     
     fprintf(stdout,"Number of nodes: %d",g->nodi);
     fprintf(stdout,"\nNumber of dead-end nodes: %d",d_end);
-    fprintf(stdout,"\nNumber of valid arcs: %d \n",valid_edges);
+    fprintf(stdout,"\nNumber of valid arcs: %d",valid_edges);
 
     free(line);
     xsem_destroy(&free_slots,pos);
