@@ -39,7 +39,6 @@ int main(int argc, char *argv[]){
         case 't':
             th=atoi(optarg);
             break;
-        case '?':
         default:
             fprintf(stderr,USAGE_MSG);
             exit(1);

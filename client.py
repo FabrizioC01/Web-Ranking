@@ -4,45 +4,50 @@ import sys,os,threading,socket,struct
 HOST="127.0.0.1"
 PORT= 56453
 
-def thread_fun(fname):
-    with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as s:
-        s.connect((HOST,PORT))
-        with open(fname,"r") as file:
-            for line in file:
+def thread_job(fname):
+    with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
+        sock.connect((HOST,PORT))
+        with open(fname,"r") as f:
+            buffer=list()
+            for line in f:
                 if line[0]=='%': continue
-                try:
-                    row, col , edges = map(int, line.split())
-                except ValueError:
-                    print("\nFormato dei dati del file non valido...")
-                    sys.exit(1)
-                break
-            assert(row==col and row>0 and col>0 and edges>0), "\nIl file passato non contiene una matrice di adiacenza"
-            print(f"\nTrovati {row} {col} {edges}")
-            s.sendall(struct.pack("!3i",row,col,edges))
-            print(f"\nDati inviati al server {HOST}")
-        s.shutdown(socket.SHUT_RDWR)
-                    
+                vals=line.split(" ")
+                vals=list(map(int,vals))
+                if len(vals)==3 :
+                    assert(vals[0]==vals[1]),"\nErrore la matrice non e'una matrice di adiacenza"
+                    sock.sendall(struct.pack("!2i",vals[0],vals[2]))
+                elif len(vals)==2:
+                    if len(buffer)==10:
+                        sock.sendall(struct.pack("!i",10))
+                        sock.sendall(struct.pack("!10i",*buffer))
+                        buffer.clear()
+                    buffer.append(vals[0])
+                    buffer.append(vals[1])
+            if not len(buffer)==0:
+                sock.sendall(struct.pack("!i",len(buffer)))
+                sock.sendall(struct.pack(f"!{len(buffer)}i",*buffer))
+                buffer.clear()
+            else:
+                sock.sendall(struct.pack("!i",0))
+        r=sock.recv(4)
+        return_code=struct.unpack("!i",r)[0]
+        print(f"{fname} Exit code: {return_code}")
 
 
+            
+                
 
 
-
-def main():
-    num=len(sys.argv)-1
+def send_data(fnames):
     threads=list()
-    for i in range(num):
-        t = threading.Thread(target=thread_fun,args=(sys.argv[i+1],))
-        threads.append(t)
+    for el in fnames:
+        t = threading.Thread(target=thread_job,args=(el,))
         t.start()
+        threads.append(t)
     for th in threads:
         th.join()
+    
 
-if len(sys.argv)<2:
-    print("\nErrore numero argomenti non valido...")
-    sys.exit(1)
-else:
-    for i in range(len(sys.argv)):
-        if not sys.argv[i].endswith(".mtx") and i!=0:
-            print("\nErrore formato argomenti non valido...")
-            sys.exit(1)
-    main()
+assert(not len(sys.argv)==1),"\nErrore argomenti non validi"
+
+send_data(sys.argv[1:])

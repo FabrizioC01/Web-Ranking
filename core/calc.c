@@ -116,7 +116,7 @@ void *thread_job(void *data){
 }
 
 double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *numiter){
-    fprintf(stderr,"\nAdesso puoi mandare SIGUSR1...\n");
+    fprintf(stderr,"Adesso puoi mandare SIGUSR1...");
 
     pthread_t signal_handler;
     sigset_t mask;
