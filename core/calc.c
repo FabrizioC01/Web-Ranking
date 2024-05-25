@@ -3,10 +3,9 @@
 #define pos __LINE__,__FILE__
 
 typedef struct sign{
-    sigset_t *set;
     double *array;
-    int s;
     int *iter;
+    int s;
     pthread_mutex_t *data_mutex;
 }signal_data;
 
@@ -21,7 +20,6 @@ typedef struct calc{
     double *Y;
     double *NEXT;
     pthread_cond_t *can_update;
-    pthread_mutex_t *calc_mutex;//vedere se lasciarlo
     //utili a capire che indice sta calcolando
     int *index;
     pthread_mutex_t *index_mutex;
@@ -76,7 +74,7 @@ void *thread_job(void *data){
     int ind;
     while (true){
         xpthread_mutex_lock(d->index_mutex,pos);
-        while(*d->index==d->g->nodi || *d->index==d->g->nodi){ pthread_cond_wait(d->free,d->index_mutex);}
+        while(*d->index==d->g->nodi){ pthread_cond_wait(d->free,d->index_mutex);}
         if(*d->index==EOF){
             xpthread_mutex_unlock(d->index_mutex,pos);
             break;    
@@ -116,14 +114,14 @@ void *thread_job(void *data){
 }
 
 double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *numiter){
-    fprintf(stderr,"Adesso puoi mandare SIGUSR1...");
+    fprintf(stderr,"\nAdesso puoi mandare SIGUSR1...\n");
 
     pthread_t signal_handler;
-    sigset_t mask;
+    sigset_t mask,oldMask;
     sigemptyset(&mask);
     sigaddset(&mask,SIGUSR1);
     sigaddset(&mask,SIGUSR2);
-    pthread_sigmask(SIG_BLOCK,&mask,NULL);
+    pthread_sigmask(SIG_BLOCK,&mask,&oldMask);
 
     int n_nodi = g->nodi;
     double dead_end=-1.0;
@@ -131,13 +129,11 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     int index=n_nodi;
     double damp= d;
 
-    signal_data s;
 
 
     pthread_t thread[taux];
 
     pthread_mutex_t mutex= PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_t calc_mutex= PTHREAD_MUTEX_INITIALIZER;
 
     pthread_cond_t can_update = PTHREAD_COND_INITIALIZER;
     pthread_cond_t lib= PTHREAD_COND_INITIALIZER;
@@ -156,12 +152,16 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     }
     
     dati *data = (dati *)malloc(sizeof(dati)*taux);
+    signal_data s;
     s.array=next;
     s.s=n_nodi;
     s.data_mutex=&mutex;
+    int iterazioni=0;
+    s.iter=&iterazioni;
+    xpthread_create(&signal_handler,NULL,sig_handler,&s,pos);
+
     for(int i=0;i<taux;i++){
         data[i].error=&error;
-        data[i].calc_mutex=&calc_mutex;
         data[i].ended=&endedt;
         data[i].can_update= &can_update;
         data[i].damp=d;
@@ -175,9 +175,9 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
         data[i].Y = y;
         xpthread_create(&thread[i],NULL,thread_job,&data[i],pos);
     }
-    int iterazioni=0;
-    s.iter=&iterazioni;
-    xpthread_create(&signal_handler,NULL,sig_handler,&s,pos);
+
+
+
     while(iterazioni<maxiter){//produce indici di X[i] su cui devono lavorare i thread
         xpthread_mutex_lock(&mutex,pos);
         while(endedt!=n_nodi){ pthread_cond_wait(&can_update,&mutex);}
@@ -207,6 +207,7 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
 
     *numiter=iterazioni;
     pthread_kill(signal_handler,SIGUSR2);
+    pthread_sigmask(SIG_SETMASK,&oldMask,NULL);
 
     xpthread_join(signal_handler,NULL,pos);
     for(int j=0;j<taux;j++){

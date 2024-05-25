@@ -83,7 +83,7 @@ graph *graph_init(const int threads, FILE *infile){
     graph *g = malloc(sizeof(graph));
 
     char *line=NULL;
-    ssize_t s=0;
+    size_t s=0;
 
     //Lettura della prima linea
     while(true){

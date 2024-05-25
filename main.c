@@ -68,6 +68,7 @@ int main(int argc, char *argv[]){
 
     qsort(t,g->nodi,sizeof(top_vals),&cmp_func);
 
+    fprintf(stdout,"\nTop %d nodes:",top_nodes);
     for(int i=0;i<top_nodes;i++){
         fprintf(stdout,"\n  %d %f",t[i].index,t[i].value);
     }
