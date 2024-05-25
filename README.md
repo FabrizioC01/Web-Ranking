@@ -19,6 +19,11 @@ utili a tenere traccia degli slot liberi e occupati del buffer. Una volta termin
 ### Consumatori
 I **Consumatori** stanno in wait su `busy_slots` in attesa che siano dei valori nel buffer, se ci sono acquisiscono la mutex, salvano la coppia, rilasciano la mutex e fanno la post su `free_slots`. Fatto ciò si occupano adesso dell aggiunta al grafo, e per evitare race condition con gli altri thread, per la modifica dei valori del grafo
 viene utilizzata una ulteriore mutex chiamata `g_mutex`.
+### Rappresentazione
+```mermaid
+stateDiagram-v2;
+    a --> b
+```
 ## Calcolo del pagerank - *calc.c*
 Il calcolo del pagerank sfrutta lo stesso numero di thread utilizzati per la creazione del grafo, all'inizio della funzione viene creato un thread apposito per la gestione del segnale `SIGUSR1` e per terminare il thread handler ho fatto in modo che venga catturato anche `SIGUSR2` .  
 In seguito vengono create le strutture dati (array, indici, contatori etc...) e i thread che dovranno svolgere l'effettivo calcolo.  
