@@ -52,7 +52,9 @@ void *consumer_routine(void *data){
 
         if(coppia.l==-1 && coppia.r==-1) break;
 
-        if(coppia.l!=coppia.r && coppia.l<=d->graph->nodi && coppia.r<=d->graph->nodi){
+        if(coppia.l>d->graph->nodi || coppia.r>d->graph->nodi) raise_error("\nErrore trovato arco non valido...",pos);
+
+        if(coppia.l!=coppia.r ){
             //aggiungo al grafo
             xpthread_mutex_lock(d->g_mutex,pos);
             if(d->graph->out[coppia.l-1]==0) (*d->d_end)--;
