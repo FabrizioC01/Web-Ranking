@@ -15,26 +15,17 @@ typedef struct calc{
     double *dead_end;
     double *error;
     int *ended;
-    //vettori da usare anch'essi in mutua esclusione
     double *X;
     double *Y;
     double *NEXT;
     pthread_cond_t *can_update;
-    //utili a capire che indice sta calcolando
     int *index;
     pthread_mutex_t *index_mutex;
     pthread_cond_t *free;
+    double *tmpY;
+    double *tmpDE;
 } dati;
 
-void vect_Y(graph *g,double *Y, double *X,double *de){
-    for(int i=0;i<g->nodi;i++){
-        if(g->out[i]>0){
-            Y[i]=X[i]/g->out[i];
-        }else{
-            *de+=X[i];
-        }
-    }
-}
 
 void *sig_handler(void *val){
     signal_data *data = (signal_data *)val;
@@ -82,17 +73,11 @@ void *thread_job(void *data){
 
         ind = *d->index;
         (*d->index)+=1;
-
-        if(*d->dead_end == -1.0){
-            *d->error=0.0;
-            *d->dead_end=0.0;
-            vect_Y(d->g,d->Y,d->X,d->dead_end);
-            *d->dead_end*=((d->damp))/d->g->nodi;
-        }
-
         xpthread_mutex_unlock(d->index_mutex,pos);
 
+
         d->NEXT[ind]=0.0;
+        
         inmap *hd = d->g->in[ind];
         while(hd!=NULL){
             d->NEXT[ind]=d->NEXT[ind]+d->Y[hd->value];
@@ -102,11 +87,20 @@ void *thread_job(void *data){
         d->NEXT[ind]=d->NEXT[ind]*d->damp;
         d->NEXT[ind]+=(*d->dead_end);
         d->NEXT[ind]+=(1-d->damp)/d->g->nodi;
-        
 
         xpthread_mutex_lock(d->index_mutex,pos);
+
+        if(d->g->out[ind]==0) *d->tmpDE+=d->NEXT[ind];
+        else d->tmpY[ind]=d->NEXT[ind]/d->g->out[ind];
+
+
         *d->error+=fabs(d->NEXT[ind]-d->X[ind]);
+
         (*d->ended)+=1;
+
+        if(*d->ended==d->g->nodi){
+            *d->tmpDE*=(d->damp)/d->g->nodi;
+        }
         pthread_cond_signal(d->can_update);
         xpthread_mutex_unlock(d->index_mutex,pos);
     }
@@ -124,7 +118,7 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     pthread_sigmask(SIG_BLOCK,&mask,&oldMask);
 
     int n_nodi = g->nodi;
-    double dead_end=-1.0;
+    double dead_end=0.0;
     double error= 0.0;
     int index=n_nodi;
     double damp= d;
@@ -145,11 +139,20 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     double *y= malloc(sizeof(double)*n_nodi);
     double *next= malloc(sizeof(double)*n_nodi);
 
-    //carico il vettore iniziale
+    double tempDE= 0.0;
+    double *tempY = malloc(sizeof(double)*n_nodi);
+
+    //carico i dati iniziali
     for(int j=0;j<n_nodi;j++){
         x[j]=(double)1/n_nodi;
-        next[j]=0.0;
+        if(g->out[j]>0){
+            tempY[j]=x[j]/g->out[j];
+        }else{
+            tempDE+=x[j];
+        }
     }
+    tempDE*=d/g->nodi;
+    
     
     dati *data = (dati *)malloc(sizeof(dati)*taux);
     signal_data s;
@@ -161,6 +164,8 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     xpthread_create(&signal_handler,NULL,sig_handler,&s,pos);
 
     for(int i=0;i<taux;i++){
+        data[i].tmpDE=&tempDE;
+        data[i].tmpY=tempY;
         data[i].error=&error;
         data[i].ended=&endedt;
         data[i].can_update= &can_update;
@@ -176,8 +181,7 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
         xpthread_create(&thread[i],NULL,thread_job,&data[i],pos);
     }
 
-
-
+    
     while(iterazioni<maxiter){//produce indici di X[i] su cui devono lavorare i thread
         xpthread_mutex_lock(&mutex,pos);
         while(endedt!=n_nodi){ pthread_cond_wait(&can_update,&mutex);}
@@ -188,8 +192,15 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
         }
         endedt=0;
         index=0;
-        dead_end=-1.0;
-        for(int i=0;i<n_nodi && iterazioni!=0;i++){ x[i]=next[i]; }
+        dead_end=tempDE;
+        error=0.0;
+        tempDE=0.0;
+        for(int i=0;i<n_nodi;i++){ 
+            if(iterazioni!=0){
+                x[i]=next[i]; 
+            }
+            y[i]=tempY[i];
+        }
         iterazioni++;
         pthread_cond_broadcast(&lib);
         xpthread_mutex_unlock(&mutex,pos);
@@ -220,6 +231,7 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     }
 
     fprintf(stdout,"\nSum of ranks: %.4f   (should be 1)",sum);
+    free(tempY);
     free(data);
     free(x);
     free(y);
