@@ -25,7 +25,7 @@ def conn_handling(conn,addr):
             valid =0
             write_buffer = list()
             while True:
-                #mi faccio mandare la dimensione del buffer
+                #mi faccio mandare la dimensione
                 length = conn.recv(4)
                 n_values = struct.unpack("!i",length)[0]
                 if n_values==-1: break
@@ -62,22 +62,20 @@ def conn_handling(conn,addr):
 
 def main():
     with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as server:
-        threads =list()
-        try:
-            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server.bind((HOST,PORT))
-            server.listen()
-            while True:
-                logging.debug("In attesa di connessione...")
-                conn, add = server.accept()
-                th = threading.Thread(target=conn_handling,args=(conn,add))
-                th.start()
-                threads.append(th)
-        except KeyboardInterrupt:
-            for t in threads:
-                t.join()
+        with concurrent.futures.ThreadPoolExecutor() as exe:
+            try:
+                server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                server.bind((HOST,PORT))
+                server.listen()
+                while True:
+                    logging.debug("In attesa di connessione...")
+                    conn, add = server.accept()
+                    exe.submit(conn_handling,conn,add)
+            except KeyboardInterrupt:
+                pass
+            exe.shutdown(wait=True)
         server.shutdown(socket.SHUT_RDWR)
-        print("Bye da server")
+        print("Bye dal server")
 
 
 main()

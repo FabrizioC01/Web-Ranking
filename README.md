@@ -23,7 +23,7 @@ viene utilizzata una ulteriore mutex chiamata `g_mutex`.
 ## Calcolo del pagerank - *calc.c*
 Il calcolo del pagerank sfrutta lo stesso numero di thread utilizzati per la creazione del grafo, all'inizio della funzione viene creato un thread apposito per la gestione del segnale `SIGUSR1` e per terminare il thread handler ho fatto in modo che venga catturato anche `SIGUSR2` .  
 In seguito vengono create le strutture dati (array, indici, contatori etc...) e i thread che dovranno svolgere l'effettivo calcolo.  
-La gestione della concorrenza è stata fatta attraverso **condition variables**, visto che i valori da passare ai thread ausiliari ("consumatori") erano interi da 0 a N-1.
+La gestione della concorrenza è stata fatta attraverso **condition variables**, visto che i valori da passare ai thread ausiliari ("consumatori") erano interi da 0 a N-1. Per poter parallelizzare il calcolo di S<sub>t</sub><sup>t+1</sup> e Y<sup>t+1</sup>, vengono create e passate ai thread delle variabili temporanee : `double tempDE` e il vettore `double *tempY`, che inizialmente all iterazione 0 vengono popolate dal main thread, e dalla sucessiva iterazione sono interamente calcolate dai thread ausiliari.
 ```C
 pthread_mutex_t mutex;
 pthread_cond_t can_update;
@@ -36,14 +36,45 @@ Una volta uscito dalla condizione dalla condizione il produttore:
 <ol>
 <li>Azzera la variabile index</li>
 <li>Azzera la variabile endedt</li>
-<li>Scambia il vettore X con NEXT</li>
-<li>Imposta la variabile nella quale è memorizzato il contributo dei nodi Dead-end a -1</li>
+<li>Assegna a dead_end il valore tempDE</li>
+<li>Copia il vettore NEXT in X</li>
+<li>Copia il vettore tempY in Y</li>
+<li>Incrementa il contatore delle iterazioni</li>
 </ol>  
 
+Infine viene fatta la broadcast ai thread in attesa su `lib`.
 Tutto ciò avviene in un ciclo while controllando il numero di iterazioni passato come argomento nella chiamata e a ogni iterazione verifico che l'errore calcolato dai thread ausiliari diventi minore di quello passato negli argomenti, in caso tal caso esco dal ciclo.
 Terminate le iterazioni passo i valori di terminazione ai thread ausiliari e termino il programma.  
 ### Consumatori
+I thread consumatori si mettono in attesa sulla *cond. var.* `lib`, una volta superata la condizione salvano il valore di `index` in `ind`,incrementano l'`index` e rilasciano la mutex. Fatto ciò possono calcolare i valori della componente `NEXT[index]` *(alla prima iterazione i valori di Y e del contributo nodi dead_end vengono calcolati dal main insieme a X)* senza la mutex. Una volta calcolata la componente del vettore `NEXT[ind]`, si riacquisice la mutex e si possono calcolare l'errore, la componente `ind` del futuro vettore `Y`, e incrementare il futuro dead_end, che a fine iterazione verranno scambiati dal main thread.  
+Una volta terminato il calcolo incremento la variabile che tiene traccia dei thread che hanno effettivamente terminato il calcolo(`endedt`), se `endedt==N` significa che il thread in questione è l ultimo della corrente iterazione e deve provvedere a moltiplicare:  
+ $ tempS_t = tempS_t * d/N$ ; si fa la signal a `can_update` e si rilascia la mutex.
 
+ ## Client e Server - *py*
+ Sia per il client che per il server in python vengono creati dei thread con la funzione
+ ```Python
+threading.Thread( target=None, args=() )
+```
+ogni istanza di thread viene aggiunta a una lista a cui poi si dovrà fare la join. Nel file *graph_server.py* il blocco di codice del socket nella quale si attendono le connessioni è all interno di un blocco `try` in modo da poter catturare `SIGINT`, una volta ricevuto il segnale viene fatta la join dei thread, quindi si attende che tutti i thread abbiano terminato e infine stampa `Bye dal server`.
+### Esempio connessione
+```mermaid
+sequenceDiagram
+Client ->> Server : connessione
+Client ->> Server : Numero di nodi e archi
+loop n interi != -1 
+Client ->> Client : lettura linea 
+Client -->> Server: n interi (2 o -1)
+Client ->> Server : Mando n interi
+Server ->> Server : Ogni 10 valori temp.write
+end
+Server ->> Server : Subprocess run pagerank
+Server ->> Client : Return code
+Server -->> Client : lunghezza di stderr/stdout
+Server ->> Client : Return code message
+```
+
+<br>
+<br>
 
 ![](https://img.shields.io/badge/C%20Language-grey?style=for-the-badge&logo=C)
 ![](https://img.shields.io/badge/Python-yellow?style=for-the-badge&logo=Python)

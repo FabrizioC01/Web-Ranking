@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-import sys,os,threading,socket,struct,pickle
+import concurrent.futures,subprocess,tempfile
+import sys,os,concurrent,socket,struct,threading,logging
+
 
 HOST="127.0.0.1"
 PORT= 56453
@@ -8,7 +10,6 @@ def thread_job(fname):
     with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
         sock.connect((HOST,PORT))
         with open(fname,"r") as f:
-            buffer=list()
             for line in f:
                 if line[0]=='%': continue
                 vals=line.split(" ")
@@ -33,14 +34,10 @@ def thread_job(fname):
 
 
 def send_data(fnames):
-    threads=list()
-    for el in fnames:
-        t = threading.Thread(target=thread_job,args=(el,))
-        t.start()
-        threads.append(t)
-    for th in threads:
-        th.join()
-    
+    with concurrent.futures.ThreadPoolExecutor() as exe:
+        for el in fnames:
+            exe.submit(thread_job,el)
+        exe.shutdown(wait=True)
 
 assert(not len(sys.argv)==1),"\nErrore argomenti non validi"
 

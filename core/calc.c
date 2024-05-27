@@ -92,8 +92,6 @@ void *thread_job(void *data){
 
         if(d->g->out[ind]==0) *d->tmpDE+=d->NEXT[ind];
         else d->tmpY[ind]=d->NEXT[ind]/d->g->out[ind];
-
-
         *d->error+=fabs(d->NEXT[ind]-d->X[ind]);
 
         (*d->ended)+=1;
