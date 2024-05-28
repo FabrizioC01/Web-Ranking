@@ -1,30 +1,6 @@
-#include "graph.h"
+#include "calc.h"
 
 #define pos __LINE__,__FILE__
-
-typedef struct sign{
-    double *array;
-    int *iter;
-    int s;
-    pthread_mutex_t *data_mutex;
-}signal_data;
-
-typedef struct calc{
-    graph *g;
-    double damp;
-    double *dead_end;
-    double *error;
-    int *ended;
-    double *X;
-    double *Y;
-    double *NEXT;
-    pthread_cond_t *can_update;
-    int *index;
-    pthread_mutex_t *index_mutex;
-    pthread_cond_t *free;
-    double *tmpY;
-    double *tmpDE;
-} dati;
 
 
 void *sig_handler(void *val){
@@ -40,10 +16,10 @@ void *sig_handler(void *val){
         if(e!=0) perror("Error sigwait");
         if(sig==SIGUSR1){
             char BUFF[50];
-            write(STDERR_FILENO,"\n== SIGUSR1 recived ==",23);
+            xwrite(STDERR_FILENO,"\n== SIGUSR1 recived ==",23,pos);
             xpthread_mutex_lock(data->data_mutex,pos);
             ssize_t s1=sprintf(BUFF,"\nIterazione: %d",*data->iter);
-            write(STDERR_FILENO,BUFF,s1);
+            xwrite(STDERR_FILENO,BUFF,s1,pos);
             double max=DBL_MIN;
             int tmp;
             for(int i=0;i<data->s;i++){
@@ -51,7 +27,7 @@ void *sig_handler(void *val){
             }
             xpthread_mutex_unlock(data->data_mutex,pos);
             ssize_t s2=sprintf(BUFF,"\nBest value: [%d] %f\n",tmp,max);
-            write(STDERR_FILENO,BUFF,s2);
+            xwrite(STDERR_FILENO,BUFF,s2,pos);
         }
         if(sig==SIGUSR2){
             break;
@@ -65,7 +41,7 @@ void *thread_job(void *data){
     int ind;
     while (true){
         xpthread_mutex_lock(d->index_mutex,pos);
-        while(*d->index==d->g->nodi){ pthread_cond_wait(d->free,d->index_mutex);}
+        while(*d->index==d->g->nodi) xpthread_cond_wait(d->free,d->index_mutex,pos);
         if(*d->index==EOF){
             xpthread_mutex_unlock(d->index_mutex,pos);
             break;    
@@ -99,7 +75,7 @@ void *thread_job(void *data){
         if(*d->ended==d->g->nodi){
             *d->tmpDE*=(d->damp)/d->g->nodi;
         }
-        pthread_cond_signal(d->can_update);
+        xpthread_cond_signal(d->can_update,pos);
         xpthread_mutex_unlock(d->index_mutex,pos);
     }
     pthread_exit(NULL);
@@ -119,7 +95,6 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     double dead_end=0.0;
     double error= 0.0;
     int index=n_nodi;
-    double damp= d;
 
 
 
@@ -182,9 +157,9 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     
     while(iterazioni<maxiter){//produce indici di X[i] su cui devono lavorare i thread
         xpthread_mutex_lock(&mutex,pos);
-        while(endedt!=n_nodi){ pthread_cond_wait(&can_update,&mutex);}
+        while(endedt!=n_nodi){ xpthread_cond_wait(&can_update,&mutex,pos);}
         if(error<eps && iterazioni!=0){
-            pthread_mutex_unlock(&mutex);
+            xpthread_mutex_unlock(&mutex,pos);
             fprintf(stdout,"\nConverged after %d iterations",iterazioni);
             break;
         }
@@ -200,7 +175,7 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
             y[i]=tempY[i];
         }
         iterazioni++;
-        pthread_cond_broadcast(&lib);
+        xpthread_cond_broadcast(&lib,pos);
         xpthread_mutex_unlock(&mutex,pos);
     } 
     if(!(iterazioni<maxiter)){
@@ -208,9 +183,9 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     }
     for(int i=0;i<taux;i++){
         xpthread_mutex_lock(&mutex,pos);
-        while(endedt!=n_nodi) pthread_cond_wait(&can_update,&mutex);
+        while(endedt!=n_nodi) xpthread_cond_wait(&can_update,&mutex,pos);
         index=EOF; //term value
-        pthread_cond_signal(&lib);
+        xpthread_cond_signal(&lib,pos);
         xpthread_mutex_unlock(&mutex,pos);
     }
 
@@ -229,6 +204,8 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     }
 
     fprintf(stdout,"\nSum of ranks: %.4f   (should be 1)",sum);
+    xpthread_cond_destroy(&can_update,pos);
+    xpthread_cond_destroy(&lib,pos);
     free(tempY);
     free(data);
     free(x);

@@ -20,6 +20,16 @@ void raise_error(const char *mex,int line, char *file){
     exit(1);
 }
 
+ssize_t xwrite(int fd, const void *buf, size_t count, int line, char *file){
+  int e = write(fd,buf,count);
+  if(e == -1) {
+    perror("Errore write"); 
+    fprintf(stderr,"== %d == Linea: %d, File: %s\n",getpid(),line,file);
+    exit(1);
+  }
+  return e;
+}
+
 FILE *xfopen(const char *path, const char *mode, int linea, char *file) {
   FILE *f = fopen(path,mode);
   if(f==NULL) {
@@ -28,46 +38,6 @@ FILE *xfopen(const char *path, const char *mode, int linea, char *file) {
     exit(1);
   }
   return f;
-}
-
-int xsem_init(sem_t *sem, int pshared, unsigned int value, int linea, char *file) {
-  int e = sem_init(sem,pshared,value);
-  if(e !=0) {
-    perror("Errore sem_init"); 
-    fprintf(stderr,"\n\n== %d == Linea: %d, File: %s\n",getpid(),linea,file);
-    exit(1);
-  }
-  return e;
-}
-
-int xsem_post(sem_t *sem, int linea, char *file) {
-  int e = sem_post(sem);
-  if(e !=0) {
-    perror("Errore sem_post"); 
-    fprintf(stderr,"== %d == Linea: %d, File: %s\n",getpid(),linea,file);
-    exit(1);
-  }
-  return e;
-}
-
-int xsem_wait(sem_t *sem, int linea, char *file) {
-  int e = sem_wait(sem);
-  if(e !=0) {
-    perror("Errore sem_wait"); 
-    fprintf(stderr,"== %d == Linea: %d, File: %s\n",getpid(),linea,file);
-    exit(1);
-  }
-  return e;
-}
-
-int xsem_destroy(sem_t *sem, int linea, char *file) {
-  int e = sem_destroy(sem);
-  if(e !=0) {
-    perror("Errore sem_destroy"); 
-    fprintf(stderr,"== %d == Linea: %d, File: %s\n",getpid(),linea,file);
-    exit(1);
-  }
-  return e;
 }
 
 int xpthread_create(pthread_t *thread, const pthread_attr_t *attr,
@@ -127,6 +97,46 @@ int xpthread_mutex_unlock(pthread_mutex_t *mutex, int linea, char *file) {
   int e = pthread_mutex_unlock(mutex);
   if (e!=0) {
     xperror(e, "Errore pthread_mutex_unlock");
+    fprintf(stderr,"== %d == Linea: %d, File: %s\n",getpid(),linea,file);
+    pthread_exit(NULL);
+  }
+  return e;
+}
+
+int xpthread_cond_wait(pthread_cond_t *restrict cond, pthread_mutex_t *restrict mutex, int linea, char *file) {
+  int e = pthread_cond_wait(cond,mutex);
+  if (e!=0) {
+    xperror(e, "Errore pthread_cond_wait");
+    fprintf(stderr,"== %d == Linea: %d, File: %s\n",getpid(),linea,file);
+    pthread_exit(NULL);
+  }
+  return e;
+}
+
+int xpthread_cond_signal(pthread_cond_t *cond, int linea, char *file) {
+  int e = pthread_cond_signal(cond);
+  if (e!=0) {
+    xperror(e, "Errore pthread_cond_signal");
+    fprintf(stderr,"== %d == Linea: %d, File: %s\n",getpid(),linea,file);
+    pthread_exit(NULL);
+  }
+  return e;
+}
+
+int xpthread_cond_broadcast(pthread_cond_t *cond, int linea, char *file) {
+  int e = pthread_cond_broadcast(cond);
+  if (e!=0) {
+    xperror(e, "Errore pthread_cond_broadcast");
+    fprintf(stderr,"== %d == Linea: %d, File: %s\n",getpid(),linea,file);
+    pthread_exit(NULL);
+  }
+  return e;
+}
+
+int xpthread_cond_destroy(pthread_cond_t *cond, int linea, char *file) {
+  int e = pthread_cond_destroy(cond);
+  if (e!=0) {
+    xperror(e, "Errore pthread_cond_destroy");
     fprintf(stderr,"== %d == Linea: %d, File: %s\n",getpid(),linea,file);
     pthread_exit(NULL);
   }

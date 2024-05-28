@@ -9,15 +9,15 @@ che restituisce il grafo popolato con i valori letti da `infile`.
 ### Produttore
 Per la **popolazione** del grafo vengono creati dei threads il cui numero è ricevuto come parametro della funzione, il passaggio dei dati avviene attraverso un buffer sfruttando quindi lo schema produttore/consumatore.  
 Il **main** thread ricopre il ruolo di  **produttore** leggendo i valori dal file `infile` e aggiungendoli a una `struct pair` contenente le coppie ordinate che verranno aggiunte al buffer.  
-La concorrenza è gestita attraverso due semafori "legati" a una mutex
+La concorrenza è gestita attraverso due condition variable "legati" a una mutex
 ```C
-sem_t free_slots;
-sem_t busy_slots;
+pthread_cond_t free_slots;
+pthread_cond_t busy_slots;
 pthread_mutex_t mutex;
 ```
 utili a tenere traccia degli slot liberi e occupati del buffer. Una volta terminata la lettura dei valori dal file, il produttore (*main thread*) manda tanti valori di terminazione (-1), tanti quanti sono i thread che sono stati creati.
 ### Consumatori
-I **Consumatori** stanno in wait su `busy_slots` in attesa che siano dei valori nel buffer, se ci sono acquisiscono la mutex, salvano la coppia, rilasciano la mutex e fanno la post su `free_slots`. Fatto ciò si occupano adesso dell aggiunta al grafo, e per evitare race condition con gli altri thread, per la modifica dei valori del grafo
+I **Consumatori** stanno in wait su `busy_slots` in attesa che siano dei valori nel buffer, se ci sono acquisiscono la mutex, salvano la coppia, rilasciano la mutex e fanno la signal su `free_slots`. Fatto ciò si occupano adesso dell aggiunta al grafo, e per evitare race condition con gli altri thread, per la modifica dei valori del grafo
 viene utilizzata una ulteriore mutex chiamata `g_mutex`.
 
 ## Calcolo del pagerank - *calc.c*
@@ -46,26 +46,34 @@ Infine viene fatta la broadcast ai thread in attesa su `lib`.
 Tutto ciò avviene in un ciclo while controllando il numero di iterazioni passato come argomento nella chiamata e a ogni iterazione verifico che l'errore calcolato dai thread ausiliari diventi minore di quello passato negli argomenti, in caso tal caso esco dal ciclo.
 Terminate le iterazioni passo i valori di terminazione ai thread ausiliari e termino il programma.  
 ### Consumatori
-I thread consumatori si mettono in attesa sulla *cond. var.* `lib`, una volta superata la condizione salvano il valore di `index` in `ind`,incrementano l'`index` e rilasciano la mutex. Fatto ciò possono calcolare i valori della componente `NEXT[index]` *(alla prima iterazione i valori di Y e del contributo nodi dead_end vengono calcolati dal main insieme a X)* senza la mutex. Una volta calcolata la componente del vettore `NEXT[ind]`, si riacquisice la mutex e si possono calcolare l'errore, la componente `ind` del futuro vettore `Y`, e incrementare il futuro dead_end, che a fine iterazione verranno scambiati dal main thread.  
+I thread consumatori si mettono in attesa sulla *cond. var.* `lib`, una volta superata la condizione salvano il valore di `index` in `ind`,incrementano l'`index` e rilasciano la mutex. Fatto ciò possono calcolare i valori della componente `NEXT[index]` *(alla prima iterazione i valori di Y e del contributo nodi dead_end vengono calcolati dal main insieme a X)* senza la mutex. Una volta calcolata la componente del vettore `NEXT[ind]`, si riacquisice la mutex e si possono calcolare l'errore, la componente `[ind]` del futuro vettore `Y`, e incrementare il futuro dead_end, che a fine iterazione verranno scambiati dal main thread.  
 Una volta terminato il calcolo incremento la variabile che tiene traccia dei thread che hanno effettivamente terminato il calcolo(`endedt`), se `endedt==N` significa che il thread in questione è l ultimo della corrente iterazione e deve provvedere a moltiplicare:  
- $ tempS_t = tempS_t * d/N$ ; si fa la signal a `can_update` e si rilascia la mutex.
+ $`tempS_t = tempS_t * d/N `$ ; si fa la signal a `can_update` e si rilascia la mutex.
 
  ## Client e Server - *py*
- Sia per il client che per il server in python vengono creati dei thread con la funzione
+ Sia per il client che per il server in python vengono creati dei thread con un pool di thread
  ```Python
-threading.Thread( target=None, args=() )
+with concurrent.futures.ThreadPoolExecutor() as exe:
 ```
-ogni istanza di thread viene aggiunta a una lista a cui poi si dovrà fare la join. Nel file *graph_server.py* il blocco di codice del socket nella quale si attendono le connessioni è all interno di un blocco `try` in modo da poter catturare `SIGINT`, una volta ricevuto il segnale viene fatta la join dei thread, quindi si attende che tutti i thread abbiano terminato e infine stampa `Bye dal server`.
-### Esempio connessione
+### Server
+Nel file *graph_server.py* per ogni connessione in arrivo viene fatta la `exe.submit(conn_handling, conn,addr)`. Il blocco di codice del socket nella quale si attendono le connessioni è all interno di un blocco `try` in modo da poter catturare `SIGINT`, una volta ricevuto il segnale viene fatta chiamato `exe.shutdown(wait= True)` che consente di attendere che tutti i thread in esecuzione abbiano terminato , infine stampa `Bye dal server`.
+### Client  
+Il client nel file `graph_client.py` , per ogni file passato come argomento fa `exe.submit(thread_job,file)`, e fa partire il thread_job che si connette al server.
+I primi valori mandati sono il numero di nodi e il numero di archi, dopodiche in loop finche non termino il file mando in sequenza il valore 2(numero valori) e la coppia di valori, quando termina il file mando -1 (valore di terminazione di lettura per il server). Infine attenderò l'exit code, la lunghezza dell' `stderr/stdin`, e l' `stdin/stderr`.
+
+### Esempio scambio dati
 ```mermaid
 sequenceDiagram
 Client ->> Server : connessione
 Client ->> Server : Numero di nodi e archi
 loop n interi != -1 
+loop len(buff) != 10
 Client ->> Client : lettura linea 
 Client -->> Server: n interi (2 o -1)
 Client ->> Server : Mando n interi
-Server ->> Server : Ogni 10 valori temp.write
+Server ->> Server : Aggiungo la coppia al buffer
+end
+Server ->> Server : temp.write(buff)
 end
 Server ->> Server : Subprocess run pagerank
 Server ->> Client : Return code
