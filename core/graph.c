@@ -12,9 +12,10 @@ typedef struct coppia{
 typedef struct dati{
     pair *buffer;
     int *pointer;
+    int *dataP;
     pthread_mutex_t *mu;
-    sem_t *f_slots;
-    sem_t *b_slots;
+    pthread_cond_t *f_slots;
+    pthread_cond_t *b_slots;
     graph *graph;
     pthread_mutex_t *g_mutex;
     int *edges;
@@ -41,14 +42,14 @@ void *consumer_routine(void *data){
     dati *d = (dati *)data;
     pair coppia; //per salvare i valori temp
     do{
-
-        xsem_wait(d->b_slots,pos);
         xpthread_mutex_lock(d->mu,pos);
+        while((*d->dataP) == 0) pthread_cond_wait(d->b_slots,d->mu);
         coppia.l=(d->buffer[*d->pointer % BUFF_SIZE]).l;
         coppia.r=(d->buffer[*d->pointer % BUFF_SIZE]).r;
         (*d->pointer)+=1;
+        (*d->dataP)-=1;
+        pthread_cond_signal(d->f_slots);
         xpthread_mutex_unlock(d->mu,pos);
-        xsem_post(d->f_slots,pos);
 
         if(coppia.l==-1 && coppia.r==-1) break;
 
@@ -72,15 +73,15 @@ graph *graph_init(const int threads, FILE *infile){
 
     pair buffer[BUFF_SIZE];
     ssize_t e=0;
-    int cindex=0,pindex=0,row=0,col=0,edges=0;
+    int cindex=0,pindex=0,row=0,col=0,edges=0,datap=0;
     pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_t graph_mutex = PTHREAD_MUTEX_INITIALIZER;
-    sem_t free_slots;
-    sem_t busy_slots;
+
     int valid_edges=0,d_end;
 
-    xsem_init(&free_slots,0,BUFF_SIZE,pos);
-    xsem_init(&busy_slots,0,0,pos);
+    pthread_cond_t busy_slots = PTHREAD_COND_INITIALIZER;
+    pthread_cond_t free_slots = PTHREAD_COND_INITIALIZER;
+
 
     graph *g = malloc(sizeof(graph));
 
@@ -113,6 +114,7 @@ graph *graph_init(const int threads, FILE *infile){
     dati d[threads];
     pthread_t t[threads];
     for(int i=0;i<threads;i++){
+        d[i].dataP=&datap;
         d[i].d_end=&d_end;
         d[i].edges=&valid_edges;
         d[i].buffer = buffer;
@@ -132,26 +134,28 @@ graph *graph_init(const int threads, FILE *infile){
         e = getline(&line,&s,infile);
         if(e==EOF){
             for(int i=0;i<threads;i++){
-                xsem_wait(&free_slots,pos);
                 xpthread_mutex_lock(&mutex,pos);
+                while((datap)==BUFF_SIZE) pthread_cond_wait(&free_slots,&mutex);
                 buffer[pindex % BUFF_SIZE].l=-1;
                 buffer[pindex % BUFF_SIZE].r=-1;
+                datap++;
                 pindex++;
+                pthread_cond_broadcast(&busy_slots);
                 xpthread_mutex_unlock(&mutex,pos);
-                xsem_post(&busy_slots,pos);
             } 
             break; 
         }
         if(line[0]!='%'){
             sscanf(line,"%d %d",&from,&to);
-            xsem_wait(&free_slots,pos);
             xpthread_mutex_lock(&mutex,pos);
+            while((datap)==BUFF_SIZE) pthread_cond_wait(&free_slots,&mutex);
             if(from<0 || to<0) raise_error("\nErrore nel file sono stati letti archi non validi...",pos);
             buffer[pindex % BUFF_SIZE].l=from;
             buffer[pindex % BUFF_SIZE].r=to;
+            datap++;
             pindex++;
+            pthread_cond_broadcast(&busy_slots);
             xpthread_mutex_unlock(&mutex,pos);
-            xsem_post(&busy_slots,pos);
         }
     }
 
@@ -165,8 +169,8 @@ graph *graph_init(const int threads, FILE *infile){
     fprintf(stdout,"\nNumber of valid arcs: %d",valid_edges);
 
     free(line);
-    xsem_destroy(&free_slots,pos);
-    xsem_destroy(&busy_slots,pos);
+    pthread_cond_destroy(&free_slots);
+    pthread_cond_destroy(&busy_slots);
     xpthread_mutex_destroy(&mutex,pos);
     xpthread_mutex_destroy(&graph_mutex,pos);
     return g;
