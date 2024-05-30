@@ -9,7 +9,7 @@ che restituisce il grafo popolato con i valori letti da `infile`.
 ### Produttore
 Per la **popolazione** del grafo vengono creati dei threads il cui numero è ricevuto come parametro della funzione, il passaggio dei dati avviene attraverso un buffer sfruttando quindi lo schema produttore/consumatore.  
 Il **main** thread ricopre il ruolo di  **produttore** leggendo i valori dal file `infile` e aggiungendoli a una `struct pair` contenente le coppie ordinate che verranno aggiunte al buffer.  
-La concorrenza è gestita attraverso due condition variable "legati" a una mutex
+La <u>concorrenza</u> è gestita attraverso due condition variable "legate" a una mutex
 ```C
 pthread_cond_t free_slots;
 pthread_cond_t busy_slots;
@@ -17,13 +17,14 @@ pthread_mutex_t mutex;
 ```
 utili a tenere traccia degli slot liberi e occupati del buffer. Una volta terminata la lettura dei valori dal file, il produttore (*main thread*) manda tanti valori di terminazione (-1), tanti quanti sono i thread che sono stati creati.
 ### Consumatori
-I **Consumatori** stanno in wait su `busy_slots` in attesa che siano dei valori nel buffer, se ci sono acquisiscono la mutex, salvano la coppia, rilasciano la mutex e fanno la signal su `free_slots`. Fatto ciò si occupano adesso dell aggiunta al grafo, e per evitare race condition con gli altri thread, per la modifica dei valori del grafo
+I <u>Consumatori</u> stanno in wait su `busy_slots` in attesa che siano dei valori nel buffer; se ci sono acquisiscono la mutex, salvano la coppia, rilasciano la mutex e fanno la signal su `free_slots`. Fatto ciò si occupano adesso dell aggiunta al grafo, e per evitare race condition con gli altri thread, per la modifica dei valori del grafo
 viene utilizzata una ulteriore mutex chiamata `g_mutex`.
 
 ## Calcolo del pagerank - *calc.c*
-Il calcolo del pagerank sfrutta lo stesso numero di thread utilizzati per la creazione del grafo, all'inizio della funzione viene creato un thread apposito per la gestione del segnale `SIGUSR1` e per terminare il thread handler ho fatto in modo che venga catturato anche `SIGUSR2` .  
+Il calcolo del pagerank sfrutta lo stesso numero di thread utilizzati per la creazione del grafo, all'inizio della funzione viene creato un thread apposito per la gestione del segnale `SIGUSR1` e per terminare il thread handler ho fatto in modo che venga catturato anche `SIGUSR2`, e alla ricezione di quest'ultimo il thread gestore termina e viene reimpostata la gestione dei segnali di default.  
 In seguito vengono create le strutture dati (array, indici, contatori etc...) e i thread che dovranno svolgere l'effettivo calcolo.  
-La gestione della concorrenza è stata fatta attraverso **condition variables**, visto che i valori da passare ai thread ausiliari ("consumatori") erano interi da 0 a N-1. Per poter parallelizzare il calcolo di S<sub>t</sub><sup>t+1</sup> e Y<sup>t+1</sup>, vengono create e passate ai thread delle variabili temporanee : `double tempDE` e il vettore `double *tempY`, che inizialmente all iterazione 0 vengono popolate dal main thread, e dalla sucessiva iterazione sono interamente calcolate dai thread ausiliari.
+La gestione della <u>concorrenza</u> è stata gestita attraverso **condition variables**, visto che i valori da passare ai thread ausiliari ("consumatori") erano interi da 0 a N-1.  
+Per poter parallelizzare il calcolo di S<sub>t</sub><sup>t+1</sup> e Y<sup>t+1</sup> *(il sucessivo contributo dei nodi DE e la successiva i-esima componente del vettore Y)*, vengono create e passate ai thread delle variabili temporanee : `double tempDE` e il vettore `double *tempY`, che inizialmente all iterazione 0 vengono popolate dal main thread, e dalla prima iterazione sono interamente calcolate dai thread ausiliari.
 ```C
 pthread_mutex_t mutex;
 pthread_cond_t can_update;
