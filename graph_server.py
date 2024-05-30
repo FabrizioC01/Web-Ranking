@@ -48,7 +48,7 @@ def conn_handling(conn,addr):
             logging.info(f"[{threading.get_ident()}] Archi scartati: {not_valid}")
             logging.info(f"[{threading.get_ident()}] Archi validi: {valid}")
             temp.seek(0)
-            ret = subprocess.run(f"./pagerank {temp.name}",capture_output=True,shell=True)
+            ret = subprocess.run(["./pagerank",temp.name],capture_output=True)
             logging.info(f"[{threading.get_ident()}] Subprocess Exit code: {ret.returncode}")
             conn.sendall(struct.pack("!i",ret.returncode))
             if(ret.returncode==0): res=ret.stdout
