@@ -18,7 +18,6 @@ typedef struct calc{
     pthread_cond_t *can_update;
     int *index;
     pthread_mutex_t *index_mutex;
-    pthread_mutex_t *data_mutex;
     pthread_cond_t *free;
     double *tmpY;
     double *tmpDE;

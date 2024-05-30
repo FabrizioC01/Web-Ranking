@@ -65,7 +65,7 @@ void *thread_job(void *data){
         d->NEXT[ind]+=(*d->dead_end);
         d->NEXT[ind]+=(1-d->damp)/d->g->nodi;
 
-        xpthread_mutex_lock(d->data_mutex,pos);
+        xpthread_mutex_lock(d->index_mutex,pos);
 
         if(d->g->out[ind]==0) *d->tmpDE+=d->NEXT[ind];
         else d->tmpY[ind]=d->NEXT[ind]/d->g->out[ind];
@@ -78,7 +78,7 @@ void *thread_job(void *data){
             *d->tmpDE*=(d->damp)/d->g->nodi;
         }
         xpthread_cond_signal(d->can_update,pos);
-        xpthread_mutex_unlock(d->data_mutex,pos);
+        xpthread_mutex_unlock(d->index_mutex,pos);
     }
     pthread_exit(NULL);
 }
@@ -103,7 +103,6 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     pthread_t thread[taux];
 
     pthread_mutex_t mutex= PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_t data_mutex = PTHREAD_MUTEX_INITIALIZER;
 
     pthread_cond_t can_update = PTHREAD_COND_INITIALIZER;
     pthread_cond_t lib= PTHREAD_COND_INITIALIZER;
@@ -140,7 +139,6 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     xpthread_create(&signal_handler,NULL,sig_handler,&s,pos);
 
     for(int i=0;i<taux;i++){
-        data[i].data_mutex = &data_mutex;
         data[i].tmpDE=&tempDE;
         data[i].tmpY=tempY;
         data[i].error=&error;
@@ -161,7 +159,7 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     
     while(iterazioni<maxiter){//produce indici di X[i] su cui devono lavorare i thread
         xpthread_mutex_lock(&mutex,pos);
-        while(endedt!=n_nodi){ xpthread_cond_wait(&can_update,&mutex,pos);}
+        while(endedt!=n_nodi){ xpthread_cond_wait(&can_update,&mutex,pos);}        
         if(error<eps && iterazioni!=0){
             xpthread_mutex_unlock(&mutex,pos);
             fprintf(stdout,"\nConverged after %d iterations",iterazioni);
@@ -198,6 +196,7 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     pthread_kill(signal_handler,SIGUSR2);
     pthread_sigmask(SIG_SETMASK,&old,NULL);
     xpthread_join(signal_handler,NULL,pos);
+    
 
     for(int j=0;j<taux;j++){
         xpthread_join(thread[j],NULL,pos);
@@ -211,7 +210,6 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     fprintf(stdout,"\nSum of ranks: %.4f   (should be 1)",sum);
     xpthread_cond_destroy(&can_update,pos);
     xpthread_cond_destroy(&lib,pos);
-    xpthread_mutex_destroy(&data_mutex,pos);
     xpthread_mutex_destroy(&mutex,pos);
     free(tempY);
     free(data);
