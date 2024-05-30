@@ -60,7 +60,7 @@ with concurrent.futures.ThreadPoolExecutor() as exe:
 Nel file *graph_server.py* per ogni connessione in arrivo viene fatta la `exe.submit(conn_handling, conn,addr)`. Il blocco di codice del socket nella quale si attendono le connessioni è all interno di un blocco `try` in modo da poter catturare `SIGINT`, una volta ricevuto il segnale viene fatta chiamato `exe.shutdown(wait= True)` che consente di attendere che tutti i thread in esecuzione abbiano terminato , infine stampa `Bye dal server`.
 ### Client  
 Il client nel file `graph_client.py` , per ogni file passato come argomento fa `exe.submit(thread_job,file)`, e fa partire il thread_job che si connette al server.
-I primi valori mandati sono il numero di nodi e il numero di archi, dopodiche in loop finche non termino il file mando in sequenza il valore 2(numero valori) e la coppia di valori, quando termina il file mando -1 (valore di terminazione di lettura per il server). Infine attenderò l'exit code, la lunghezza dell' `stderr/stdin`, e l' `stdin/stderr`.
+I primi valori mandati sono il numero di nodi e il numero di archi, dopodiche in loop finche non termino il file mando in sequenza il valore 2(numero valori) e la coppia di valori, quando termina il file mando -1 (fa uscire il server dal ciclo di lettura). Infine attenderò l'exit code, la lunghezza della stringa `stderr/stdin`, e la stringa `stdin/stderr`.
 
 ### Esempio scambio dati
 ```mermaid
