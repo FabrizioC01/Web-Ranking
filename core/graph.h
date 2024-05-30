@@ -3,6 +3,7 @@
 //Funzione che inizia la procedura di creazione del grafo dal file "infile"
 graph *graph_init(const int threads, FILE *infile);
 
+//Elimina il grafo dalla memoria
 void graph_delete(graph **g);
 
 //Funzione che effettua il calcolo effettivo dei vettori (restituisce un array di double con len=num nodi)
