@@ -25,12 +25,9 @@ def conn_handling(conn,addr):
             valid =0
             write_buffer = list()
             while True:
-                #mi faccio mandare la dimensione
-                length = conn.recv(4)
-                n_values = struct.unpack("!i",length)[0]
-                if n_values==-1: break
-                vals = conn.recv(n_values*4)
-                v1,v2 = struct.unpack(f"!{n_values}i",vals)
+                vals = conn.recv(8)
+                v1,v2 = struct.unpack(f"!2i",vals)
+                if v1==-1 and v2==-1: break
                 if v1>nodi or v2>nodi:
                     not_valid+=1
                     continue
@@ -73,7 +70,7 @@ def main():
                     exe.submit(conn_handling,conn,add)
             except KeyboardInterrupt:
                 pass
-            exe.shutdown(wait=True)
+            exe.shutdown(wait=True,cancel_futures=False)
         server.shutdown(socket.SHUT_RDWR)
         print("Bye dal server")
 

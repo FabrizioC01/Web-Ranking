@@ -67,12 +67,11 @@ I primi valori mandati sono il numero di nodi e il numero di archi, dopodiche in
 sequenceDiagram
 Client ->> Server : connessione
 Client ->> Server : Numero di nodi e archi
-loop n interi != -1 
+loop coppia != (-1,-1)
 loop len(buff) != 10
 Client ->> Client : lettura linea 
-Client -->> Server: n interi (2 o -1)
-Client ->> Server : Mando n interi
-Server ->> Server : Aggiungo la coppia al buffer
+Client ->> Server : Mando 2 interi
+Server ->> Server : Se != (-1,-1) buff.append
 end
 Server ->> Server : temp.write(buff)
 end

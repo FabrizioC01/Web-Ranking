@@ -18,9 +18,8 @@ def thread_job(fname):
                     assert(vals[0]==vals[1]),"\nErrore la matrice non e'una matrice di adiacenza"
                     sock.sendall(struct.pack("!2i",vals[0],vals[2]))
                 elif len(vals)==2:
-                    sock.sendall(struct.pack("!i",2))
                     sock.sendall(struct.pack("!2i",vals[0],vals[1]))
-        sock.sendall(struct.pack("!i",-1))
+        sock.sendall(struct.pack("!2i",-1,-1))
         r=sock.recv(4)
         return_code=struct.unpack("!i",r)[0]
         print(f"{fname} Exit code: {return_code}")
