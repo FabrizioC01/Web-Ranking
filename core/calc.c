@@ -19,15 +19,13 @@ void *sig_handler(void *val){
             char BUFF[50];
             xwrite(STDERR_FILENO,"\n== SIGUSR1 recived ==",23,pos);
             xpthread_mutex_lock(data->data_mutex,pos);
-            ssize_t s1=sprintf(BUFF,"\nIterazione: %d",*data->iter);
-            xwrite(STDERR_FILENO,BUFF,s1,pos);
-            double max=DBL_MIN;
-            int tmp;
-            for(int i=0;i<data->s;i++){
-                if(data->array[i]>max){ max=data->array[i]; tmp=i;}
-            }
+            int iter =*data->iter;
+            double max=*data->max;
+            int i = *data->max_idx;
             xpthread_mutex_unlock(data->data_mutex,pos);
-            ssize_t s2=sprintf(BUFF,"\nBest value: [%d] %f\n",tmp,max);
+            size_t s1=sprintf(BUFF,"\nIterazione: %d",iter);
+            xwrite(STDERR_FILENO,BUFF,s1,pos);
+            size_t s2=sprintf(BUFF,"\nBest value: [%d] %f\n",i,max);
             xwrite(STDERR_FILENO,BUFF,s2,pos);
         }
         if(sig==SIGUSR2){
@@ -47,7 +45,6 @@ void *thread_job(void *data){
             xpthread_mutex_unlock(d->index_mutex,pos);
             break;    
         }
-
         ind = *d->index;
         (*d->index)+=1;
         xpthread_mutex_unlock(d->index_mutex,pos);
@@ -66,17 +63,17 @@ void *thread_job(void *data){
         d->NEXT[ind]+=(1-d->damp)/d->g->nodi;
 
         xpthread_mutex_lock(d->index_mutex,pos);
-
         if(d->g->out[ind]==0) *d->tmpDE+=d->NEXT[ind];
         else d->tmpY[ind]=d->NEXT[ind]/d->g->out[ind];
-
         *d->error+=fabs(d->NEXT[ind]-d->X[ind]);
-
+        //Incremento thread che hanno terminato il calcolo
         (*d->ended)+=1;
-
-        if(*d->ended==d->g->nodi){
-            *d->tmpDE*=(d->damp)/d->g->nodi;
+        if(*d->max<d->NEXT[ind]){
+            *d->max=d->NEXT[ind];
+            *d->max_idx=ind;
         }
+        if(*d->ended==d->g->nodi) *d->tmpDE*=(d->damp)/d->g->nodi;
+        
         xpthread_cond_signal(d->can_update,pos);
         xpthread_mutex_unlock(d->index_mutex,pos);
     }
@@ -97,7 +94,6 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
     double dead_end=0.0;
     double error= 0.0;
     int index=n_nodi;
-
 
 
     pthread_t thread[taux];
@@ -127,18 +123,25 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
         }
     }
     tempDE*=d/g->nodi;
-    
-    
+
+    double max = (double)1/n_nodi;
+    int max_index = 0;
+
+    double tmp_max = max;
+    int tmp_max_idx = max_index;
+
     dati *data = (dati *)malloc(sizeof(dati)*taux);
     signal_data s;
-    s.array=next;
-    s.s=n_nodi;
+    s.max=&max;
+    s.max_idx=&max_index;
     s.data_mutex=&mutex;
     int iterazioni=0;
     s.iter=&iterazioni;
     xpthread_create(&signal_handler,NULL,sig_handler,&s,pos);
 
     for(int i=0;i<taux;i++){
+        data[i].max=&tmp_max;
+        data[i].max_idx=&tmp_max_idx;
         data[i].tmpDE=&tempDE;
         data[i].tmpY=tempY;
         data[i].error=&error;
@@ -165,6 +168,9 @@ double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *num
             fprintf(stdout,"\nConverged after %d iterations",iterazioni);
             break;
         }
+        max = tmp_max;
+        max_index = tmp_max_idx;
+        tmp_max= DBL_MIN;
         endedt=0;
         index=0;
         dead_end=tempDE;

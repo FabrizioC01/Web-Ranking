@@ -1,9 +1,9 @@
 #include "graph.h"
 typedef struct sign{
-    double *array;
     int *iter;
-    int s;
     pthread_mutex_t *data_mutex;
+    double *max;
+    int *max_idx;
 }signal_data;
 
 typedef struct calc{
@@ -21,6 +21,8 @@ typedef struct calc{
     pthread_cond_t *free;
     double *tmpY;
     double *tmpDE;
+    double *max;
+    int *max_idx;
 } dati;
 
 double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *numiter);
