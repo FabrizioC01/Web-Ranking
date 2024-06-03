@@ -77,7 +77,7 @@ void *thread_job(void *data){
         xpthread_cond_signal(d->can_update,pos);
         xpthread_mutex_unlock(d->index_mutex,pos);
     }
-    pthread_exit(NULL);
+    return NULL;
 }
 
 double *pagerank(graph *g, double d, double eps, int maxiter, int taux, int *numiter){

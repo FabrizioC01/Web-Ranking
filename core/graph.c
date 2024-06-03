@@ -66,7 +66,7 @@ void *consumer_routine(void *data){
         
     }while(true);
 
-    pthread_exit(NULL);
+    return NULL;
 }
 
 graph *graph_init(const int threads, FILE *infile){
