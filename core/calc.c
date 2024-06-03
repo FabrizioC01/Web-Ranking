@@ -9,7 +9,6 @@ void *sig_handler(void *val){
     sigemptyset(&mask);
     sigaddset(&mask,SIGUSR1);
     sigaddset(&mask,SIGUSR2);
-    //pthread_sigmask(SIG_BLOCK,&mask,NULL);
     int sig;
     while (true)
     {
