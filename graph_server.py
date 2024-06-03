@@ -70,7 +70,7 @@ def main():
                     exe.submit(conn_handling,conn,add)
             except KeyboardInterrupt:
                 pass
-            exe.shutdown(wait=True,cancel_futures=False)
+            exe.shutdown(wait=True)
         server.shutdown(socket.SHUT_RDWR)
         print("Bye dal server")
 
