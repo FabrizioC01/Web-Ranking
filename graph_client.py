@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-import concurrent.futures,subprocess,tempfile
-import sys,os,concurrent,socket,struct,threading,logging
+import concurrent.futures
+import sys,os,concurrent,socket,struct
 
 
 HOST="127.0.0.1"
 PORT= 56453
 
 def thread_job(fname):
+    if not os.path.isfile(fname):
+        print(f"{fname} Errore file non esistente...")
+        return
     with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
         sock.connect((HOST,PORT))
         with open(fname,"r") as f:
